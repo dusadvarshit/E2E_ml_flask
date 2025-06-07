@@ -1,6 +1,8 @@
 name: Update Jira with Review Count
 
 on:
+  workflow_dispatch:
+  
   pull_request_review:
     types: [submitted]
 
@@ -37,8 +39,8 @@ jobs:
         if: steps.get_info.outputs.jiraKey != ''
         run: |
           curl --request POST \
-            --url "https://your-domain.atlassian.net/rest/api/3/issue/${{ steps.get_info.outputs.jiraKey }}/comment" \
-            --user "you@example.com:${{ secrets.JIRA_API_TOKEN }}" \
+            --url "https://gargcashreya.atlassian.net/rest/api/latest/issue/${{ steps.get_info.outputs.jiraKey }}/comment" \
+            --user "garg.cashreya@gmail.com:${{ secrets.JIRA_API_TOKEN }}" \
             --header 'Content-Type: application/json' \
             --data "{
               \"body\": \"${{ steps.get_info.outputs.reviewCount }} code reviews received on this PR.\"
