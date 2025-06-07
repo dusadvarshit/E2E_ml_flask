@@ -39,7 +39,7 @@ jobs:
 
           with open(event_path) as f:
               event_data = json.load(f)
-
+          print(event_data)
           pr_number = event_data['pull_request']['number']
 
           # GitHub API headers
