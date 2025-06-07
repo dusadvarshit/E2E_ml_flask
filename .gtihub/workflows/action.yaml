@@ -1,0 +1,47 @@
+name: Update Jira with Review Count
+
+on:
+  workflow_dispatch:
+  
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  update-jira:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get PR Info
+        uses: actions/github-script@v7
+        id: get_info
+        with:
+          script: |
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+            });
+
+            const reviews = await github.rest.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+            });
+
+            const reviewCount = reviews.data.length;
+
+            const match = pr.data.title.match(/([A-Z]+-\d+)/); // extract Jira key
+            const jiraKey = match ? match[1] : null;
+
+            core.setOutput("reviewCount", reviewCount);
+            core.setOutput("jiraKey", jiraKey);
+
+      - name: Post to Jira
+        if: steps.get_info.outputs.jiraKey != ''
+        run: |
+          curl --request POST \
+            --url "https://gargcashreya.atlassian.net/rest/api/latest/issue/${{ steps.get_info.outputs.jiraKey }}/comment" \
+            --user "garg.cashreya@gmail.com:${{ secrets.JIRA_API_TOKEN }}" \
+            --header 'Content-Type: application/json' \
+            --data "{
+              \"body\": \"${{ steps.get_info.outputs.reviewCount }} code reviews received on this PR.\"
+            }"

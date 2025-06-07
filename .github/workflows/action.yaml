@@ -1,0 +1,78 @@
+name: Update Jira with Review Count
+
+on:
+  workflow_dispatch:
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  update-jira:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install requests
+        run: pip install requests
+
+      - name: Run Python Script to Post to Jira
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_USER_EMAIL: garg.cashreya@gmail.com
+        run: |
+          python3 <<EOF
+          import os
+          import re
+          import requests
+          import json
+
+          # Extract PR info from GitHub context
+          repo = os.environ['GITHUB_REPOSITORY']
+          [owner, repo_name] = repo.split('/')
+          event_path = os.environ['GITHUB_EVENT_PATH']
+
+          with open(event_path) as f:
+              event_data = json.load(f)
+          print(event_data)
+          pr_number = event_data['pull_request']['number']
+
+          # GitHub API headers
+          headers = {
+              "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+              "Accept": "application/vnd.github+json"
+          }
+
+          # Fetch PR details
+          pr_url = f"https://api.github.com/repos/{owner}/{repo_name}/pulls/{pr_number}"
+          pr_data = requests.get(pr_url, headers=headers).json()
+          pr_title = pr_data['title']
+
+          # Extract Jira Key
+          match = re.search(r'([A-Z]+-\d+)', pr_title)
+          if not match:
+              print("No Jira issue key found in PR title.")
+              exit(0)
+          jira_key = match.group(1)
+
+          # Get PR reviews
+          reviews_url = f"https://api.github.com/repos/{owner}/{repo_name}/pulls/{pr_number}/reviews"
+          reviews_data = requests.get(reviews_url, headers=headers).json()
+          review_count = len(reviews_data)
+
+          # Post comment to Jira
+          jira_comment_url = f"https://gargcashreya.atlassian.net/rest/api/latest/issue/{jira_key}/comment"
+          auth = (os.environ['JIRA_USER_EMAIL'], os.environ['JIRA_API_TOKEN'])
+          comment_payload = {
+              "body": f"{review_count} code reviews received on this PR."
+          }
+
+          response = requests.post(jira_comment_url, json=comment_payload, auth=auth)
+
+          print("Jira Response:", response.status_code, response.text)
+          EOF
